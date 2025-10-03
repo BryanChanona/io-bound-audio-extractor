@@ -1,4 +1,4 @@
-import { searchTracks,downloadTrack } from "../controllers/audiusController.mjs";
+import { searchTracks, downloadTrack } from "../controllers/audiusController.mjs";
 
 export function audiusRouter(req, res) {
   if (req.method === 'GET' && req.url.startsWith('/audius/search')) {
