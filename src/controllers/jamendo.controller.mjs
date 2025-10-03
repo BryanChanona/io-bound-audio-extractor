@@ -1,3 +1,4 @@
+import { title } from "process";
 import { JamendoService } from "../services/jamendo.service.mjs";
 
 export class JamendoController {
@@ -39,9 +40,18 @@ export class JamendoController {
         return;
       }
 
-      // Solo enviamos la URL de descarga al frontend
+      const songData = {
+        track_id: song.id,
+        title: song.name,
+        artist: song.artist_name,
+        description: song.album_name, // o null si prefieres
+        duration: song.duration,
+        stream_url: song.audio
+      };
+
+      
       res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ downloadUrl: song.audio })); // 'audio' es el campo con el link MP3
+      res.end(JSON.stringify(songData)); // 'audio' es el campo con el link MP3
     } catch (err) {
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: err.message }));
