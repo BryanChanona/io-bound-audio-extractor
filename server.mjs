@@ -3,6 +3,7 @@ import http from 'node:http'; //Módulo para crear un servidor HTTP
 import { availableParallelism } from 'node:os';
 import process from 'node:process'; //Proporciona información acerca del proceso actual
 import dotenv from 'dotenv'
+import { JamendoRoutes } from './src/routes/jamendo.routes.mjs';
 
 dotenv.config()
 
@@ -29,6 +30,9 @@ if (cluster.isPrimary) {
     });
 } else {
     const server = http.createServer((req, res) => {
+        if (req.url .startsWith('/jamendo/')){
+            return JamendoRoutes(req, res)
+        }
         // Configuramos la cabecera de respuesta
         res.writeHead(200, { 'Content-Type': 'text/plain' });
         // Respondemos con un mensaje y el ID del worker que atendió la petición
