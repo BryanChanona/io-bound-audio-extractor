@@ -1,6 +1,6 @@
 import db from "../config/db.mjs";
 import { DownloadModelAudios } from '../models/Download.mjs';
-import { downloadsPath } from "../config/paths.mjs";
+import { downloadsPath } from "../utils/paths.mjs";
 import fs from 'node:fs';
 import path from 'node:path';
 

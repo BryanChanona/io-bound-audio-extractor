@@ -1,8 +1,7 @@
-import { title } from "process";
 import { JamendoService } from "../services/jamendo.service.mjs";
+import { downloadAudio } from "../utils/downloadAudio-jamendo.mjs";
 
 export class JamendoController {
-  // Buscar canciones
   static async search(req, res) {
     const queryParam = new URL(req.url, `http://${req.headers.host}`).searchParams.get("query");
     if (!queryParam) {
@@ -21,7 +20,6 @@ export class JamendoController {
     }
   }
 
-  // Devolver URL de descarga por ID
   static async downloadById(req, res) {
     const idParam = new URL(req.url, `http://${req.headers.host}`).searchParams.get("id");
     if (!idParam) {
@@ -31,7 +29,6 @@ export class JamendoController {
     }
 
     try {
-      // JamendoService.getSongById devuelve info de la canción incluyendo la URL de audio
       const song = await JamendoService.getSongById(idParam);
 
       if (!song) {
@@ -40,18 +37,21 @@ export class JamendoController {
         return;
       }
 
-      const songData = {
-        track_id: song.id,
-        title: song.name,
-        artist: song.artist_name,
-        description: song.album_name, // o null si prefieres
-        duration: song.duration,
-        stream_url: song.audio
-      };
+      const filePath = await downloadAudio(song.audiodownload, song.artist_name, song.name);
 
-      
       res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify(songData)); // 'audio' es el campo con el link MP3
+      res.end(
+        JSON.stringify({
+          message: "Descarga completada",
+          path: filePath,
+          track: {
+            id: song.id,
+            title: song.name,
+            artist: song.artist_name,
+            duration: song.duration,
+          },
+        })
+      );
     } catch (err) {
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: err.message }));

@@ -2,7 +2,7 @@ import fetch from 'node-fetch';
 import fs from 'fs';
 import path from 'path';
 import { saveDownload } from '../services/db.mjs';
-import { downloadsPath } from '../config/paths.mjs'; // carpeta central de descargas
+import { downloadsPath } from '../utils/paths.mjs'; // carpeta central de descargas
 
 export async function searchTracks(req, res) {
   try {
