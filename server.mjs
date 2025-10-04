@@ -4,13 +4,14 @@ import { availableParallelism } from 'node:os';
 import process from 'node:process'; //Proporciona información acerca del proceso actual
 import dotenv from 'dotenv'
 import { JamendoRoutes } from './src/routes/jamendo.routes.mjs';
+import { audiusRouter } from './src/routes/audiusRoutes.mjs'; // importamos tus rutas
 
 dotenv.config()
 
-
 //Obtenemos el número de CPUs disponibles en la máquina
 const numCPUS = availableParallelism();
-const PORT =  process.env.PORT;
+const PORT = process.env.PORT || 8000;
+
 
 //El cluster principal es quien coordina a los workers.
 if (cluster.isPrimary) {
@@ -19,29 +20,30 @@ if (cluster.isPrimary) {
 
     //Creamos un worker para cada CPU disponible
     for (let i = 0; i < numCPUS; i++) {
-
-        cluster.fork() //crea un nuevo proceso worker
-
+        cluster.fork(); //crea un nuevo proceso worker
     }
+
     //Escuchamos si algún worker se muere
     cluster.on('exit', (worker, code, signal) => {
         console.log(`Worker ${worker.process.pid} died`);
-        // worker.process.pid → ID del proceso worker que murió
     });
+
 } else {
     const server = http.createServer((req, res) => {
         if (req.url .startsWith('/jamendo/')){
             return JamendoRoutes(req, res)
         }
-        // Configuramos la cabecera de respuesta
+    
+        if (req.url.startsWith('/audius/')) {
+            return audiusRouter(req, res);
+        }
+
+        // Resto de rutas por defecto
         res.writeHead(200, { 'Content-Type': 'text/plain' });
-        // Respondemos con un mensaje y el ID del worker que atendió la petición
         res.end(`Hello world from worker ${process.pid}\n`);
     });
 
-    // El servidor escucha en el puerto 8000
     server.listen(PORT, () => {
-        console.log(`Worker ${process.pid} started and listening on port 8000`);
+        console.log(`Worker ${process.pid} started and listening on port ${PORT}`);
     });
 }
-
