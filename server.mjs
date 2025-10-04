@@ -1,83 +1,74 @@
-import cluster from 'node:cluster';
 import http from 'node:http';
-import { availableParallelism } from 'node:os';
-import process from 'node:process';
 import dotenv from 'dotenv';
+import path from 'path';
+import fs from 'fs';
+import { pipeline } from 'stream/promises';
+import Ffmpeg from 'fluent-ffmpeg';
+import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
 import { JamendoRoutes } from './src/routes/jamendo.routes.mjs';
 import { audiusRouter } from './src/routes/audiusRoutes.mjs';
-import { pipeline } from 'stream/promises';
-import path from 'path';
-import { Worker } from 'worker_threads';
-import fs from 'fs';
 
 dotenv.config();
 
+// Directorios para subida y salida
 const uploadDir = path.resolve('./uploads');
 const outputDir = path.resolve('./output');
 
+// Crear carpetas si no existen
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
 if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir);
 
+// Configurar ffmpeg
+Ffmpeg.setFfmpegPath(ffmpegInstaller.path);
+
+// Función para convertir el archivo MP3 a MP4 en el hilo principal
 function convertMP3toMP4(inputFile, outputFile) {
   return new Promise((resolve, reject) => {
-    const worker = new Worker(path.resolve('./src/workers/worker.mjs'), {
-      workerData: { inputFile, outputFile }
-    });
-
-    worker.on('message', (msg) => msg.success ? resolve(msg.outputFile) : reject(msg.error));
-    worker.on('error', reject);
-    worker.on('exit', (code) => {
-      if (code !== 0) reject(new Error(`Worker stopped with exit code ${code}`));
-    });
+    Ffmpeg(inputFile)
+      .outputOptions('-c:v libx264')
+      .toFormat('mp4')
+      .save(outputFile)
+      .on('end', () => resolve(outputFile))
+      .on('error', (err) => reject(err));
   });
 }
 
-// CPUs y puerto
-const numCPUS = availableParallelism();
+// Puerto del servidor
 const PORT = process.env.PORT || 8000;
 
-// Cluster principal
-if (cluster.isPrimary) {
-  console.log(`Primary ${process.pid} is running`);
+// Servidor principal (sin cluster)
+const server = http.createServer(async (req, res) => {
+  try {
+    // Rutas personalizadas
+    if (req.url.startsWith('/jamendo/')) return JamendoRoutes(req, res);
+    if (req.url.startsWith('/audius/')) return audiusRouter(req, res);
 
-  for (let i = 0; i < numCPUS; i++) cluster.fork();
+    // Ruta para subir archivo
+    if (req.method === 'POST' && req.url === '/upload') {
+      const filename = `file-${Date.now()}.mp3`;
+      const filepath = path.join(uploadDir, filename);
 
-  cluster.on('exit', (worker, code, signal) => {
-    console.log(`Worker ${worker.process.pid} died`);
-    cluster.fork()
-  });
+      // Guardar archivo recibido
+      await pipeline(req, fs.createWriteStream(filepath));
 
-} else {
-  // Cada worker maneja las solicitudes
-  const server = http.createServer(async (req, res) => {
-    try {
-      if (req.url.startsWith('/jamendo/')) return JamendoRoutes(req, res);
-      if (req.url.startsWith('/audius/')) return audiusRouter(req, res);
+      // Convertir el archivo directamente (sin worker)
+      const outputFile = path.join(outputDir, filename.replace('.mp3', '.mp4'));
+      await convertMP3toMP4(filepath, outputFile);
 
-      if (req.method === 'POST' && req.url === '/upload') {
-        const filename = `file-${Date.now()}.mp3`;
-        const filepath = path.join(uploadDir, filename);
-
-        // Guardar el MP3 recibido
-        await pipeline(req, fs.createWriteStream(filepath));
-
-        const outputFile = path.join(outputDir, filename.replace('.mp3', '.mp4'));
-        await convertMP3toMP4(filepath, outputFile);
-
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ message: 'Archivo convertido', outputFile }));
-      }
-
-      // Resto de rutas por defecto
-      res.writeHead(200, { 'Content-Type': 'text/plain' });
-      res.end(`Hello world from worker ${process.pid}\n`);
-    } catch (err) {
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: err.message }));
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ message: 'Archivo convertido', outputFile }));
     }
-  });
 
-  server.listen(PORT, () => {
-    console.log(`Worker ${process.pid} started and listening on port ${PORT}`);
-  });
-}
+    // Ruta por defecto
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('Servidor sin concurrencia ejecutándose en un solo hilo\n');
+  } catch (err) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: err.message }));
+  }
+});
+
+// Iniciar servidor
+server.listen(PORT, () => {
+  console.log(`Servidor escuchando en el puerto ${PORT}`);
+});
