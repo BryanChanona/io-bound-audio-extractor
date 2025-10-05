@@ -1,0 +1,6 @@
+.env
+/node_modules
+/downloads
+/uploads
+/output
+script.sh
