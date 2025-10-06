@@ -5,6 +5,7 @@ import process from 'node:process';
 import dotenv from 'dotenv';
 import { JamendoRoutes } from './src/routes/jamendo.routes.mjs';
 import { audiusRouter } from './src/routes/audiusRoutes.mjs';
+import { deezerRouter } from './src/routes/dezerRoutes.mjs';
 import { pipeline } from 'stream/promises';
 import path from 'path';
 import { Worker } from 'worker_threads';
@@ -53,6 +54,8 @@ if (cluster.isPrimary) {
     try {
       if (req.url.startsWith('/jamendo/')) return JamendoRoutes(req, res);
       if (req.url.startsWith('/audius/')) return audiusRouter(req, res);
+      if (req.url.startsWith('/deezer/')) return deezerRouter(req, res);
+
 
       if (req.method === 'POST' && req.url === '/upload') {
         const filename = `file-${Date.now()}.mp3`;
